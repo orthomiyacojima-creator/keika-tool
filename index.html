@@ -203,7 +203,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBfi9eyu8RXy7kl1UAujkDnXkIhLzxScf0",
@@ -216,6 +216,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const CLINIC_ID = new URLSearchParams(window.location.search).get('clinic') || 'clinic_001';
 const senseiCol = collection(db, "senseis");
 const patientCol = collection(db, "patients");
 
@@ -245,14 +246,14 @@ function showToast(msg) {
 }
 
 // Firestore listeners
-onSnapshot(senseiCol, snap => {
+onSnapshot(query(senseiCol, where("clinicId","==",CLINIC_ID)), snap => {
   senseis = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
   setSyncBadge('ok', 'クラウド同期済み');
   renderSenseiList();
   refreshSenseiSelects();
 }, () => setSyncBadge('err', '接続エラー'));
 
-onSnapshot(patientCol, snap => {
+onSnapshot(query(patientCol, where("clinicId","==",CLINIC_ID)), snap => {
   patients = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
   setSyncBadge('ok', 'クラウド同期済み');
   renderPatientList();
@@ -286,7 +287,7 @@ function refreshSenseiSelects() {
 window.addSensei = async () => {
   const name = document.getElementById('new-sensei').value.trim();
   if (!name || senseis.find(s => s.name === name)) return;
-  await addDoc(senseiCol, { name });
+  await addDoc(senseiCol, { name, clinicId: CLINIC_ID });
   document.getElementById('new-sensei').value = '';
   showToast('先生を追加しました');
 };
@@ -321,7 +322,7 @@ window.addPatient = async () => {
   const sensei = document.getElementById('new-patient-sensei').value;
   if (!id || patients.find(p => p.id === id)) return;
   const goal = document.getElementById('new-patient-goal').value.trim();
-  await addDoc(patientCol, { id, sensei, goal, visits: [], jireiRegistered: false });
+  await addDoc(patientCol, { id, sensei, goal, visits: [], jireiRegistered: false, clinicId: CLINIC_ID });
   document.getElementById('new-patient-id').value = '';
   document.getElementById('new-patient-goal').value = '';
   showToast('患者を追加しました');
@@ -542,7 +543,7 @@ window.registerAsJirei = async (patientDocId) => {
     visits: visits.map(v => ({ date: v.date, pain: v.pain, stiff: v.stiff, range: v.range }))
   };
   try {
-    await addDoc(jireiCol, jireiData);
+    await addDoc(jireiCol, {...jireiData, clinicId: CLINIC_ID});
     await updateDoc(doc(db, 'patients', patientDocId), { jireiRegistered: true });
     showToast('事例検索ツールに登録しました！');
   } catch(e) {
